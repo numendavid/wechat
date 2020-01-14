@@ -1,0 +1,322 @@
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+from wxpy import *
+import requests
+from datetime import datetime
+import time
+from apscheduler.schedulers.blocking import BlockingScheduler  # 定时框架
+from apscheduler.triggers.cron import CronTrigger
+from urllib.request import urlopen
+from bs4 import BeautifulSoup
+import itchat
+from itchat.content import *
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import *
+from PyQt5.QtGui import QIcon, QFont
+import sys
+import datetime
+import time
+import itchat
+import threading
+from tkinter import messagebox
+import json
+import requests
+
+
+class FriendsList(QThread):
+    sinOut = pyqtSignal(str)
+
+    # 自定义信号，执行run()函数时，从相关线程发射此信号
+
+    def __init__(self):
+        super().__init__()
+
+    def run(self):
+
+        itchat.auto_login(hotReload=True)
+        friendList = itchat.get_chatrooms(update=True)
+        for each in friendList:
+            if len(each['RemarkName']) < 2:  # 如果 备注名为空,则用微信昵称
+                self.sinOut.emit(each['NickName'])
+            else:
+                self.sinOut.emit(each['RemarkName'])
+
+
+# 天气
+# 发送天气情况
+def get_weather():
+    print('获取天气信息', time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time())))
+    url = "https://wis.qq.com/weather/common"
+    querystring = {"source": "xw", "weather_type": "forecast_1h|forecast_24h|index|alarm|limit|tips", "province": "上海",
+                   "city": "上海"}
+    headers = {}
+    response = requests.request("GET", url, headers=headers, params=querystring)
+    # print("今日天气：")
+    apidata = (json.loads(response.text))["data"]["forecast_24h"]
+    i = (apidata[str(1)])
+    '''
+    print(i["time"] + ':' + '白天天气为' + i['day_weather'] + "," + "最高气温为" + i["max_degree"] + "℃，最低气温为" + i[
+        "min_degree"] + "℃," + i["day_wind_power"] + "级" + i["day_wind_direction"] + '；' + '晚上天气为' + i[
+              'night_weather'] + "," + i["day_wind_power"] + "级" + i["day_wind_direction"] + "。")
+    '''
+    shishi = i["time"] + ':' + '\n' + '白天天气为' + i['day_weather'] + "," + "最高气温为" + i["max_degree"] + "℃，最低气温为" + i[
+        "min_degree"] + "℃," + i["day_wind_power"] + "级" + i["day_wind_direction"] + '；' + '晚上天气为' + i[
+                 'night_weather'] + "," + i["day_wind_power"] + "级" + i["day_wind_direction"] + "。" + '\n'
+
+    tipsdata = (json.loads(response.text))["data"]["tips"]["observe"]
+    shishi1 = tipsdata["0"] + "  " + tipsdata["1"] + '\n'
+    str0 = shishi + shishi1
+    # print(str0)
+    # print(tipsdata["0"]+"  "+tipsdata["1"]+'\n')
+    # print('\n')
+    indexdata = (json.loads(response.text))["data"]["index"]
+    # print(indexdata)
+    update_time = []
+
+    allergy = indexdata['allergy']
+    str1 = allergy["name"] + ": " + allergy["info"] + "；" + allergy["detail"] + '\n'
+    # print(str1)
+    chill = indexdata['chill']
+    str2 = chill["name"] + ": " + chill["info"] + "\n" + chill["detail"] + '\n'
+    # print(str2)
+    drying = indexdata['drying']
+    str3 = drying["name"] + ": " + drying["info"] + "；" + drying["detail"] + '\n'
+    # print(str3)
+    clothes = indexdata['clothes']
+    str4 = clothes["name"] + ": " + clothes["info"] + "；" + clothes["detail"] + '\n'
+    # print(str4)
+    sunscreen = indexdata['sunscreen']
+    str5 = sunscreen["name"] + ": " + sunscreen["info"] + "；" + sunscreen["detail"] + '\n'
+    # print(str5)
+    traffic = indexdata['traffic']
+    str6 = traffic["name"] + ": " + traffic["info"] + "\n" + traffic["detail"] + '\n'
+    # print(str6)
+    umbrella = indexdata['umbrella']
+    str7 = umbrella["name"] + ": " + umbrella["info"] + "\n" + umbrella["detail"] + '\n'
+    # print(str7)
+    settq = '    ' + str0 + '    ' + str2 + '    ' + str6 + '    ' + str7
+    # print(settq)
+    return settq
+
+
+# 获取每日一句
+def get_iciba():
+    print('获取格言信息', time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time())))
+    '''
+    获取格言信息（从『一个。one』获取信息 http://wufazhuce.com/）
+    :return: str 一句格言或者短语
+    '''
+    # print('获取格言信息..')
+    user_url = 'http://wufazhuce.com/'
+    resp = requests.get(user_url)
+    soup_texts = BeautifulSoup(resp.text, 'lxml')
+    # 『one -个』 中的每日一句
+    mryj = soup_texts.find_all('div', class_='fp-one-cita')[0].find('a').text
+    str = '    每日一句：\n' + mryj + '\n'
+    return str
+
+
+def gnamelist(args):
+    pass
+
+
+class sendMessage(QThread):
+
+    def __init__(self, message, name, time):
+        super().__init__()
+        self.message = message
+        self.name = name
+        self.time = time
+
+    def run(self):
+        timer = threading.Timer(self.time, self.send)
+        timer.start()
+
+    def send(self):
+        itchat.auto_login(hotReload=True)
+        #text_list = self.friendList.selectedItems()
+        #gnamelist = [i.text() for i in list(text_list)]
+        #print(self.name)
+        groudlist= self.name
+        for i in range(len(groudlist)):
+            groud = groudlist[i]
+            sender = itchat.search_chatrooms(groud)[0]['UserName']
+
+
+            text = '这是今天的天气预报！来自贴心的大树下！\n' + get_weather() + get_iciba() + '    早上好~\n'
+        # itchat.send(self.message, toUserName=sender)
+        # itchat.send(self.message, toUserName='filehelper')
+            itchat.send(text+self.message, toUserName=sender)
+            print('发送成功', time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time())))
+        # itchat.send(text, toUserName='filehelper')#发送成功后发送到到文件助手
+        # messagebox.showinfo('消息', '发送成功')#发送成功后弹窗
+
+
+class weixinSender(QListWidget):
+
+    def __init__(self):
+        super().__init__()
+        self.Ui()
+        # self.dataProduce()
+
+    def Ui(self):
+        self.year_label = QLabel('年')
+        self.year = QLineEdit()
+        self.month_label = QLabel('月')
+        self.month = QLineEdit()
+        self.day_label = QLabel('日')
+        self.day = QLineEdit()
+        self.friendList_lable = QLabel('微\n信\n群')
+        self.friendList = QListWidget()  # QComboBox()
+        self.friendList.setSelectionMode(QAbstractItemView.MultiSelection)  #多选选择
+
+        self.hour_label = QLabel('时')
+        self.hour = QLineEdit()
+        self.min_label = QLabel('分')
+        self.min = QLineEdit()
+        self.second_label = QLabel('秒')
+        self.second = QLineEdit()
+
+        self.hour_label1 = QLabel('时')
+        self.hour1 = QLineEdit()
+        self.min_label1 = QLabel('分')
+        self.min1 = QLineEdit()
+        self.second_label1 = QLabel('秒')
+        self.second1 = QLineEdit()
+
+        self.text = QTextEdit()  # 文本域
+        self.listbt = QPushButton('获\n取\n群\n列\n表')
+        self.OKbt = QPushButton('定期发送')
+        self.OKbt1 = QPushButton('定时发送')
+        self.time1 = QLabel('周一到周五7点')
+
+        grid = QGridLayout()
+        grid.setSpacing(10)  # 创建标签之间的空间
+
+        grid.addWidget(self.year_label, 1, 7)
+        grid.addWidget(self.year, 1, 6, 1, 1)
+        grid.addWidget(self.month_label, 1, 9)
+        grid.addWidget(self.month, 1, 8)
+        grid.addWidget(self.day_label, 1, 11)
+        grid.addWidget(self.day, 1, 10)
+        grid.addWidget(self.friendList_lable, 3, 0, 1, 1)
+        grid.addWidget(self.friendList, 3, 1, 4, 5, Qt.AlignTop)
+
+        grid.addWidget(self.hour_label, 2, 7)
+        grid.addWidget(self.hour, 2, 6)
+        grid.addWidget(self.min_label, 2, 9)
+        grid.addWidget(self.min, 2, 8)
+        grid.addWidget(self.second_label, 2, 11)
+        grid.addWidget(self.second, 2, 10)
+
+        grid.addWidget(self.hour_label1, 2, 1)
+        grid.addWidget(self.hour1, 2, 0)
+        grid.addWidget(self.min_label1, 2, 3)
+        grid.addWidget(self.min1, 2, 2)
+        grid.addWidget(self.second_label1, 2, 5)
+        grid.addWidget(self.second1, 2, 4)
+
+        grid.addWidget(self.text, 3, 6, 4, 6)
+        grid.addWidget(self.listbt, 4, 0, 3, 1)
+        grid.addWidget(self.OKbt, 7, 10, 1, 2)
+        grid.addWidget(self.OKbt1, 7, 2, 1, 2)
+        grid.addWidget(self.time1, 7, 0, 1, 2)
+
+        self.setLayout(grid)
+
+        self.friendList.addItem('群1')
+        self.friendList.addItem('群2')
+
+        self.text.setFont(QFont("楷体", 12, QFont.Normal))
+
+        self.OKbt.clicked.connect(self.send)
+        self.OKbt1.clicked.connect(self.sendall)
+        self.listbt.clicked.connect(self.dataProduce)
+        self.setGeometry(300, 300, 500, 300)
+        self.setWindowTitle('定时发送消息')
+        self.setWindowIcon(QIcon('weixinIcon.jpg'))  # 窗口图标
+        self.show()
+
+    def dataProduce(self):
+        now = time.localtime()
+        self.year.setText(str(now.tm_year))
+        self.month.setText(str(now.tm_mon))
+        self.day.setText(str(now.tm_mday))
+        self.hour.setText(str(now.tm_hour))
+        self.min.setText(str(now.tm_min))
+        self.second.setText(str(now.tm_sec))
+
+        self.friendList.clear()
+        self.thread = FriendsList()
+        self.thread.sinOut.connect(self.slotAdd)
+        self.thread.start()
+
+    def slotAdd(self, name):
+        self.friendList.addItem(name)
+
+#定时循环
+    def send(self):
+        sched = BlockingScheduler()
+        #print(self.friendList.currentText())
+        text_list = self.friendList.selectedItems()
+        friendList = [i.text() for i in list(text_list)]
+        # text = '_', join(text)  # text即多选项并以_隔开
+        # self.current_selection = [x for x in self.friendList.selectedItems()]
+        #print(friendList)
+
+
+
+
+        # sched.add_job(SendChatRoomsMsg, 'cron', day_of_week='mon-fri',hour=7, minute=20)  # 设定发送的时间
+        # sched.add_job(send_message, 'interval', seconds=10)
+        # trigger = CronTrigger(day_of_week='mon-fri', hour='7', minute="0", second="0")# 设定发送的时间
+        # sched.add_job(SendChatRoomsMsg, trigger)  # 根据需要进行设置
+        self.target = datetime.datetime(int(self.year.text()), int(self.month.text()), int(self.day.text()),
+                                        int(self.hour.text()), int(self.min.text()), int(self.second.text()))
+        self.now = time.time()
+        self.delay_time = self.target.timestamp() - self.now
+        #print(self.text.toPlainText())
+        #print(self.friendList.currentText())
+        self.sendThread = sendMessage(self.text.toPlainText(), friendList, self.delay_time)
+        #self.sendThread = sendMessage(self.text.toPlainText(), self.friendList.currentText(), self.delay_time)
+        # self.sendThread = sendMessage(self.text.toPlainText(), self.friendList.currentText(), trigger)
+        print('设定成功')
+        self.sendThread.start()
+
+#定期循环
+    def sendall(self):
+        sched = BlockingScheduler()
+        #print(self.friendList.currentText())
+        text_list = self.friendList.selectedItems()
+        friendList = [i.text() for i in list(text_list)]
+        # text = '_', join(text)  # text即多选项并以_隔开
+        # self.current_selection = [x for x in self.friendList.selectedItems()]
+        #print(friendList)
+
+        # sched.add_job(SendChatRoomsMsg, 'cron', day_of_week='mon-fri',hour=7, minute=20)  # 设定发送的时间
+        # sched.add_job(send_message, 'interval', seconds=10)
+        trigger = CronTrigger(day_of_week='mon-fri', hour=str(self.hour1.text()), minute=str(self.min1.text()), second=str(self.second1.text()))# 设定发送的时间
+        
+
+        print(str(self.second1.text()))
+        #trigger = i
+        #sched.add_job(sendMessage, trigger)  # 根据需要进行设置
+        #self.target = datetime.datetime(int(self.year.text()), int(self.month.text()), int(self.day.text()),
+                                        #int(self.hour.text()), int(self.min.text()), int(self.second.text()))
+        #self.now = time.time()
+        #self.delay_time = self.target.timestamp() - self.now
+        #print(self.text.toPlainText())
+        #print(self.friendList.currentText())
+        self.sendThread = sendMessage(self.text.toPlainText(), friendList, trigger)
+        #self.sendThread = sendMessage(self.text.toPlainText(), self.friendList.currentText(), self.delay_time)
+        # self.sendThread = sendMessage(self.text.toPlainText(), self.friendList.currentText(), trigger)
+        print('设定成功')
+        self.sendThread.start()
+
+
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    ex = weixinSender()
+
+    sys.exit(app.exec_())
